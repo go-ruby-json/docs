@@ -438,6 +438,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="parse-60obj">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parse-hot-path-optimization-2026-07-03" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parse hot-path optimization (2026-07-03)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -542,6 +557,21 @@
       parse-60obj
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="parse-60obj">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parse-hot-path-optimization-2026-07-03" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parse hot-path optimization (2026-07-03)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -665,28 +695,28 @@ MRI before any timing.</p>
 <tbody>
 <tr>
 <td><strong>go-ruby (pure Go)</strong></td>
-<td style="text-align: right;">8954.9</td>
-<td style="text-align: right;">1.10×</td>
+<td style="text-align: right;">9080.9</td>
+<td style="text-align: right;">1.12×</td>
 </tr>
 <tr>
 <td>MRI</td>
-<td style="text-align: right;">8136.0</td>
+<td style="text-align: right;">8073.0</td>
 <td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>MRI + YJIT</td>
-<td style="text-align: right;">8469.0</td>
-<td style="text-align: right;">1.04×</td>
+<td style="text-align: right;">8048.0</td>
+<td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>JRuby</td>
-<td style="text-align: right;">14874.5</td>
-<td style="text-align: right;">1.83×</td>
+<td style="text-align: right;">14992.5</td>
+<td style="text-align: right;">1.86×</td>
 </tr>
 <tr>
 <td>TruffleRuby</td>
-<td style="text-align: right;">41615.4</td>
-<td style="text-align: right;">5.11×</td>
+<td style="text-align: right;">44100.6</td>
+<td style="text-align: right;">5.46×</td>
 </tr>
 </tbody>
 </table>
@@ -702,32 +732,59 @@ MRI before any timing.</p>
 <tbody>
 <tr>
 <td><strong>go-ruby (pure Go)</strong></td>
-<td style="text-align: right;">28201.2</td>
-<td style="text-align: right;">2.30×</td>
+<td style="text-align: right;">21866.7</td>
+<td style="text-align: right;">1.80×</td>
 </tr>
 <tr>
 <td>MRI</td>
-<td style="text-align: right;">12274.0</td>
+<td style="text-align: right;">12157.0</td>
 <td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>MRI + YJIT</td>
-<td style="text-align: right;">12048.0</td>
-<td style="text-align: right;">0.98×</td>
+<td style="text-align: right;">12129.0</td>
+<td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>JRuby</td>
-<td style="text-align: right;">64480.0</td>
-<td style="text-align: right;">5.25×</td>
+<td style="text-align: right;">65483.0</td>
+<td style="text-align: right;">5.39×</td>
 </tr>
 <tr>
 <td>TruffleRuby</td>
-<td style="text-align: right;">121400.1</td>
-<td style="text-align: right;">9.89×</td>
+<td style="text-align: right;">127274.9</td>
+<td style="text-align: right;">10.47×</td>
 </tr>
 </tbody>
 </table>
-<p><code>generate</code> is at parity (1.10×); <code>parse</code> is ~2.3× MRI's C extension and is the top optimization target for the module. Both operations remain far ahead of the JVM- and Graal-based Rubies on this document.</p>
+<p><code>generate</code> is at parity (1.12×); <code>parse</code> is now <strong>1.80× MRI's C extension</strong>, down
+from <strong>2.30×</strong> before the parse hot-path optimization (below). Both operations
+remain far ahead of the JVM- and Graal-based Rubies on this document.</p>
+<h5 id="parse-hot-path-optimization-2026-07-03">Parse hot-path optimization (2026-07-03)<a class="headerlink" href="#parse-hot-path-optimization-2026-07-03" title="Permanent link">&para;</a></h5>
+<p>An allocation profile of the parse path found two avoidable allocation sources —
+a per-object <code>map[any]int</code> key-index built for <em>every</em> object, and re-boxing each
+object key on <em>every</em> occurrence — that were ~75% of the ~731 allocs/op. Both
+were removed with <strong>no change to the MRI-observable result</strong> (same parsed
+structure, key order, <code>Integer</code>/<code>Float</code> types, string/encoding handling and
+malformed-input errors):</p>
+<ul>
+<li><strong>Lazy <code>Map</code> index</strong> — small objects (the common case) resolve keys by linear
+  scan with no map allocation; the hash index is materialised only once an object
+  grows past 16 pairs, so large hashes keep O(1) lookup. Duplicate-key last-wins
+  and insertion order are unchanged.</li>
+<li><strong>Key dedup cache</strong> — a key string that recurs across sibling records is boxed
+  into an interface once and reused, mirroring MRI's frozen-fstring key dedup;
+  only the shared interface header changes, never the contents.</li>
+</ul>
+<p>Measured effect on <code>parse-60obj</code>: <strong>731 → 318 allocs/op</strong>, <strong>39944 → 20216
+B/op</strong>, <strong>2.30× → 1.80× MRI</strong>. The GC pressure that dominated the CPU profile
+(concurrent <code>madvise</code>/<code>kevent</code>) is roughly halved.</p>
+<p><strong>Honest residual:</strong> the remaining allocations are <em>structural</em> to the MRI value
+model — each object is a <code>*Map</code> over <code>[]Pair</code>, each array a boxed <code>[]any</code>, and
+string/array values must be boxed into <code>any</code>; these cannot be removed without
+changing the observable output. MRI's mature C extension keeps a modest edge
+(~1.8×) on this document, so full parse parity is not reachable while the return
+type is the Ruby value tree.</p>
 <div class="admonition note">
 <p class="admonition-title">Reproduce</p>
 <p>The harness is committed under
