@@ -67,23 +67,53 @@ MRI before any timing.
 
 | Runtime | ns/op | vs MRI |
 | --- | ---: | ---: |
-| **go-ruby (pure Go)** | 8954.9 | 1.10× |
-| MRI | 8136.0 | 1.00× |
-| MRI + YJIT | 8469.0 | 1.04× |
-| JRuby | 14874.5 | 1.83× |
-| TruffleRuby | 41615.4 | 5.11× |
+| **go-ruby (pure Go)** | 9080.9 | 1.12× |
+| MRI | 8073.0 | 1.00× |
+| MRI + YJIT | 8048.0 | 1.00× |
+| JRuby | 14992.5 | 1.86× |
+| TruffleRuby | 44100.6 | 5.46× |
 
 #### parse-60obj
 
 | Runtime | ns/op | vs MRI |
 | --- | ---: | ---: |
-| **go-ruby (pure Go)** | 28201.2 | 2.30× |
-| MRI | 12274.0 | 1.00× |
-| MRI + YJIT | 12048.0 | 0.98× |
-| JRuby | 64480.0 | 5.25× |
-| TruffleRuby | 121400.1 | 9.89× |
+| **go-ruby (pure Go)** | 21866.7 | 1.80× |
+| MRI | 12157.0 | 1.00× |
+| MRI + YJIT | 12129.0 | 1.00× |
+| JRuby | 65483.0 | 5.39× |
+| TruffleRuby | 127274.9 | 10.47× |
 
-`generate` is at parity (1.10×); `parse` is ~2.3× MRI's C extension and is the top optimization target for the module. Both operations remain far ahead of the JVM- and Graal-based Rubies on this document.
+`generate` is at parity (1.12×); `parse` is now **1.80× MRI's C extension**, down
+from **2.30×** before the parse hot-path optimization (below). Both operations
+remain far ahead of the JVM- and Graal-based Rubies on this document.
+
+##### Parse hot-path optimization (2026-07-03)
+
+An allocation profile of the parse path found two avoidable allocation sources —
+a per-object `map[any]int` key-index built for *every* object, and re-boxing each
+object key on *every* occurrence — that were ~75% of the ~731 allocs/op. Both
+were removed with **no change to the MRI-observable result** (same parsed
+structure, key order, `Integer`/`Float` types, string/encoding handling and
+malformed-input errors):
+
+- **Lazy `Map` index** — small objects (the common case) resolve keys by linear
+  scan with no map allocation; the hash index is materialised only once an object
+  grows past 16 pairs, so large hashes keep O(1) lookup. Duplicate-key last-wins
+  and insertion order are unchanged.
+- **Key dedup cache** — a key string that recurs across sibling records is boxed
+  into an interface once and reused, mirroring MRI's frozen-fstring key dedup;
+  only the shared interface header changes, never the contents.
+
+Measured effect on `parse-60obj`: **731 → 318 allocs/op**, **39944 → 20216
+B/op**, **2.30× → 1.80× MRI**. The GC pressure that dominated the CPU profile
+(concurrent `madvise`/`kevent`) is roughly halved.
+
+**Honest residual:** the remaining allocations are *structural* to the MRI value
+model — each object is a `*Map` over `[]Pair`, each array a boxed `[]any`, and
+string/array values must be boxed into `any`; these cannot be removed without
+changing the observable output. MRI's mature C extension keeps a modest edge
+(~1.8×) on this document, so full parse parity is not reachable while the return
+type is the Ruby value tree.
 
 !!! note "Reproduce"
     The harness is committed under
