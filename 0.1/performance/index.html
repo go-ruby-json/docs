@@ -442,9 +442,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#parse-hot-path-optimization-2026-07-03" class="md-nav__link">
+  <a href="#arenascratch-parse-materialisation-2026-07-03" class="md-nav__link">
     <span class="md-ellipsis">
-      Parse hot-path optimization (2026-07-03)
+      Arena/scratch parse materialisation (2026-07-03)
     </span>
   </a>
   
@@ -562,9 +562,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#parse-hot-path-optimization-2026-07-03" class="md-nav__link">
+  <a href="#arenascratch-parse-materialisation-2026-07-03" class="md-nav__link">
     <span class="md-ellipsis">
-      Parse hot-path optimization (2026-07-03)
+      Arena/scratch parse materialisation (2026-07-03)
     </span>
   </a>
   
@@ -695,28 +695,28 @@ MRI before any timing.</p>
 <tbody>
 <tr>
 <td><strong>go-ruby (pure Go)</strong></td>
-<td style="text-align: right;">9080.9</td>
-<td style="text-align: right;">1.12×</td>
+<td style="text-align: right;">8944.1</td>
+<td style="text-align: right;">1.08×</td>
 </tr>
 <tr>
 <td>MRI</td>
-<td style="text-align: right;">8073.0</td>
+<td style="text-align: right;">8260.0</td>
 <td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>MRI + YJIT</td>
-<td style="text-align: right;">8048.0</td>
-<td style="text-align: right;">1.00×</td>
+<td style="text-align: right;">8162.0</td>
+<td style="text-align: right;">0.99×</td>
 </tr>
 <tr>
 <td>JRuby</td>
-<td style="text-align: right;">14992.5</td>
-<td style="text-align: right;">1.86×</td>
+<td style="text-align: right;">14989.0</td>
+<td style="text-align: right;">1.81×</td>
 </tr>
 <tr>
 <td>TruffleRuby</td>
-<td style="text-align: right;">44100.6</td>
-<td style="text-align: right;">5.46×</td>
+<td style="text-align: right;">49454.2</td>
+<td style="text-align: right;">5.99×</td>
 </tr>
 </tbody>
 </table>
@@ -732,59 +732,75 @@ MRI before any timing.</p>
 <tbody>
 <tr>
 <td><strong>go-ruby (pure Go)</strong></td>
-<td style="text-align: right;">21866.7</td>
-<td style="text-align: right;">1.80×</td>
+<td style="text-align: right;">11657.1</td>
+<td style="text-align: right;">0.95×</td>
 </tr>
 <tr>
 <td>MRI</td>
-<td style="text-align: right;">12157.0</td>
+<td style="text-align: right;">12276.0</td>
 <td style="text-align: right;">1.00×</td>
 </tr>
 <tr>
 <td>MRI + YJIT</td>
-<td style="text-align: right;">12129.0</td>
-<td style="text-align: right;">1.00×</td>
+<td style="text-align: right;">12206.0</td>
+<td style="text-align: right;">0.99×</td>
 </tr>
 <tr>
 <td>JRuby</td>
-<td style="text-align: right;">65483.0</td>
-<td style="text-align: right;">5.39×</td>
+<td style="text-align: right;">65933.3</td>
+<td style="text-align: right;">5.37×</td>
 </tr>
 <tr>
 <td>TruffleRuby</td>
-<td style="text-align: right;">127274.9</td>
-<td style="text-align: right;">10.47×</td>
+<td style="text-align: right;">125297.3</td>
+<td style="text-align: right;">10.21×</td>
 </tr>
 </tbody>
 </table>
-<p><code>generate</code> is at parity (1.12×); <code>parse</code> is now <strong>1.80× MRI's C extension</strong>, down
-from <strong>2.30×</strong> before the parse hot-path optimization (below). Both operations
-remain far ahead of the JVM- and Graal-based Rubies on this document.</p>
-<h5 id="parse-hot-path-optimization-2026-07-03">Parse hot-path optimization (2026-07-03)<a class="headerlink" href="#parse-hot-path-optimization-2026-07-03" title="Permanent link">&para;</a></h5>
-<p>An allocation profile of the parse path found two avoidable allocation sources —
-a per-object <code>map[any]int</code> key-index built for <em>every</em> object, and re-boxing each
-object key on <em>every</em> occurrence — that were ~75% of the ~731 allocs/op. Both
-were removed with <strong>no change to the MRI-observable result</strong> (same parsed
-structure, key order, <code>Integer</code>/<code>Float</code> types, string/encoding handling and
-malformed-input errors):</p>
+<p><code>parse</code> is now <strong>faster than MRI's C extension <em>and</em> MRI + YJIT</strong> — 0.95× MRI
+(11.66 µs vs 12.28 µs) and 0.955× YJIT (vs 12.21 µs) — where it was 1.80× MRI
+before the arena/scratch materialisation below (and 2.30× before the round prior
+to that). <code>generate</code> holds at parity (1.08×). Both operations remain far ahead of
+the JVM- and Graal-based Rubies on this document.</p>
+<h5 id="arenascratch-parse-materialisation-2026-07-03">Arena/scratch parse materialisation (2026-07-03)<a class="headerlink" href="#arenascratch-parse-materialisation-2026-07-03" title="Permanent link">&para;</a></h5>
+<p>The previous round cut allocations 731 → 318/op (a lazy <code>Map</code> index and a
+key-dedup cache) and reached 1.80× MRI, calling the residual "structural to the
+Ruby value tree." A deeper pass profiled <code>parse-60obj</code> again — allocations, CPU,
+and a <code>GOGC</code> ablation which showed that, contrary to the earlier reading, <strong>GC
+was <em>not</em> the bottleneck</strong> (<code>GOGC=off</code> barely moved the number; the darwin CPU
+profiler over-attributes samples to <code>kevent</code>/<code>madvise</code>). The real costs were the
+scan, per-<code>malloc</code> churn, and per-value materialisation overhead. Four reducible
+costs were attacked, on top of the irreducible value-tree interface boxing, with
+<strong>no change to the MRI-observable result</strong> (same parsed structure, key order,
+<code>Integer</code>/<code>Float</code> types, string/encoding, duplicate-key last-wins and
+malformed-input errors — <code>Parse</code>'s return type is unchanged):</p>
 <ul>
-<li><strong>Lazy <code>Map</code> index</strong> — small objects (the common case) resolve keys by linear
-  scan with no map allocation; the hash index is materialised only once an object
-  grows past 16 pairs, so large hashes keep O(1) lookup. Duplicate-key last-wins
-  and insertion order are unchanged.</li>
-<li><strong>Key dedup cache</strong> — a key string that recurs across sibling records is boxed
-  into an interface once and reused, mirroring MRI's frozen-fstring key dedup;
-  only the shared interface header changes, never the contents.</li>
+<li><strong>Per-parse arenas.</strong> The <code>Map</code> structs, their <code>[]Pair</code> backing and arrays'
+  <code>[]any</code> backing are bump-allocated from shared slabs carved into exact
+  sub-slices; the returned tree keeps a slab alive, the builder is discarded.
+  ~180 per-op allocations collapse to a handful.</li>
+<li><strong>No element pre-scan.</strong> The per-container <code>countElems</code> look-ahead — ~37% of
+  the pure-scan cost — is gone: materialisation accumulates each container's
+  members in a reused scratch stack and learns the exact size at container close,
+  so no second pass is needed.</li>
+<li><strong>Inline integer parsing</strong> replaces <code>strconv.ParseInt</code> (falling back to
+  <code>*big.Int</code> only on int64 overflow).</li>
+<li><strong>Key handling.</strong> A linear key cache (a map only past 32 distinct keys), a
+  dense id per distinct key, and <strong>O(1) duplicate-key detection via a per-object
+  id bitmask</strong> replace a hash lookup on every key occurrence and the O(n²)
+  duplicate-key scan. <code>skipSpace</code> gains a single-compare fast path.</li>
 </ul>
-<p>Measured effect on <code>parse-60obj</code>: <strong>731 → 318 allocs/op</strong>, <strong>39944 → 20216
-B/op</strong>, <strong>2.30× → 1.80× MRI</strong>. The GC pressure that dominated the CPU profile
-(concurrent <code>madvise</code>/<code>kevent</code>) is roughly halved.</p>
-<p><strong>Honest residual:</strong> the remaining allocations are <em>structural</em> to the MRI value
-model — each object is a <code>*Map</code> over <code>[]Pair</code>, each array a boxed <code>[]any</code>, and
-string/array values must be boxed into <code>any</code>; these cannot be removed without
-changing the observable output. MRI's mature C extension keeps a modest edge
-(~1.8×) on this document, so full parse parity is not reachable while the return
-type is the Ruby value tree.</p>
+<p>Measured effect on <code>parse-60obj</code>: <strong>1.80× → 0.95× MRI</strong> (and 0.955× YJIT) —
+parse now clears both reference C-extension columns. The scan alone dropped from
+~11.0 µs to ~5.5 µs; full parse from ~21.9 µs to ~11.7 µs.</p>
+<p><strong>Where the floor is:</strong> the surviving allocations are the <em>irreducible</em> interface
+boxes of the value tree itself — each string value and each array must be boxed
+into <code>any</code> (~121 boxes for this document, ~1.75 µs) — plus the pure byte scan
+(~5.5 µs). Both are inherent while <code>Parse</code> returns the Ruby value tree, yet the
+sum now sits below MRI+YJIT because the scan and the non-boxing materialisation
+overhead were driven down far enough. Small integers (0–255) and <code>*Map</code> pointers
+box for free (Go's static small-value cache / pointer-in-interface), so the
+document's <code>id</code>/<code>score</code>/<code>tags</code> integers and its nested maps add no boxing.</p>
 <div class="admonition note">
 <p class="admonition-title">Reproduce</p>
 <p>The harness is committed under
