@@ -67,53 +67,69 @@ MRI before any timing.
 
 | Runtime | ns/op | vs MRI |
 | --- | ---: | ---: |
-| **go-ruby (pure Go)** | 9080.9 | 1.12× |
-| MRI | 8073.0 | 1.00× |
-| MRI + YJIT | 8048.0 | 1.00× |
-| JRuby | 14992.5 | 1.86× |
-| TruffleRuby | 44100.6 | 5.46× |
+| **go-ruby (pure Go)** | 8944.1 | 1.08× |
+| MRI | 8260.0 | 1.00× |
+| MRI + YJIT | 8162.0 | 0.99× |
+| JRuby | 14989.0 | 1.81× |
+| TruffleRuby | 49454.2 | 5.99× |
 
 #### parse-60obj
 
 | Runtime | ns/op | vs MRI |
 | --- | ---: | ---: |
-| **go-ruby (pure Go)** | 21866.7 | 1.80× |
-| MRI | 12157.0 | 1.00× |
-| MRI + YJIT | 12129.0 | 1.00× |
-| JRuby | 65483.0 | 5.39× |
-| TruffleRuby | 127274.9 | 10.47× |
+| **go-ruby (pure Go)** | 11657.1 | 0.95× |
+| MRI | 12276.0 | 1.00× |
+| MRI + YJIT | 12206.0 | 0.99× |
+| JRuby | 65933.3 | 5.37× |
+| TruffleRuby | 125297.3 | 10.21× |
 
-`generate` is at parity (1.12×); `parse` is now **1.80× MRI's C extension**, down
-from **2.30×** before the parse hot-path optimization (below). Both operations
-remain far ahead of the JVM- and Graal-based Rubies on this document.
+`parse` is now **faster than MRI's C extension _and_ MRI + YJIT** — 0.95× MRI
+(11.66 µs vs 12.28 µs) and 0.955× YJIT (vs 12.21 µs) — where it was 1.80× MRI
+before the arena/scratch materialisation below (and 2.30× before the round prior
+to that). `generate` holds at parity (1.08×). Both operations remain far ahead of
+the JVM- and Graal-based Rubies on this document.
 
-##### Parse hot-path optimization (2026-07-03)
+##### Arena/scratch parse materialisation (2026-07-03)
 
-An allocation profile of the parse path found two avoidable allocation sources —
-a per-object `map[any]int` key-index built for *every* object, and re-boxing each
-object key on *every* occurrence — that were ~75% of the ~731 allocs/op. Both
-were removed with **no change to the MRI-observable result** (same parsed
-structure, key order, `Integer`/`Float` types, string/encoding handling and
-malformed-input errors):
+The previous round cut allocations 731 → 318/op (a lazy `Map` index and a
+key-dedup cache) and reached 1.80× MRI, calling the residual "structural to the
+Ruby value tree." A deeper pass profiled `parse-60obj` again — allocations, CPU,
+and a `GOGC` ablation which showed that, contrary to the earlier reading, **GC
+was _not_ the bottleneck** (`GOGC=off` barely moved the number; the darwin CPU
+profiler over-attributes samples to `kevent`/`madvise`). The real costs were the
+scan, per-`malloc` churn, and per-value materialisation overhead. Four reducible
+costs were attacked, on top of the irreducible value-tree interface boxing, with
+**no change to the MRI-observable result** (same parsed structure, key order,
+`Integer`/`Float` types, string/encoding, duplicate-key last-wins and
+malformed-input errors — `Parse`'s return type is unchanged):
 
-- **Lazy `Map` index** — small objects (the common case) resolve keys by linear
-  scan with no map allocation; the hash index is materialised only once an object
-  grows past 16 pairs, so large hashes keep O(1) lookup. Duplicate-key last-wins
-  and insertion order are unchanged.
-- **Key dedup cache** — a key string that recurs across sibling records is boxed
-  into an interface once and reused, mirroring MRI's frozen-fstring key dedup;
-  only the shared interface header changes, never the contents.
+- **Per-parse arenas.** The `Map` structs, their `[]Pair` backing and arrays'
+  `[]any` backing are bump-allocated from shared slabs carved into exact
+  sub-slices; the returned tree keeps a slab alive, the builder is discarded.
+  ~180 per-op allocations collapse to a handful.
+- **No element pre-scan.** The per-container `countElems` look-ahead — ~37% of
+  the pure-scan cost — is gone: materialisation accumulates each container's
+  members in a reused scratch stack and learns the exact size at container close,
+  so no second pass is needed.
+- **Inline integer parsing** replaces `strconv.ParseInt` (falling back to
+  `*big.Int` only on int64 overflow).
+- **Key handling.** A linear key cache (a map only past 32 distinct keys), a
+  dense id per distinct key, and **O(1) duplicate-key detection via a per-object
+  id bitmask** replace a hash lookup on every key occurrence and the O(n²)
+  duplicate-key scan. `skipSpace` gains a single-compare fast path.
 
-Measured effect on `parse-60obj`: **731 → 318 allocs/op**, **39944 → 20216
-B/op**, **2.30× → 1.80× MRI**. The GC pressure that dominated the CPU profile
-(concurrent `madvise`/`kevent`) is roughly halved.
+Measured effect on `parse-60obj`: **1.80× → 0.95× MRI** (and 0.955× YJIT) —
+parse now clears both reference C-extension columns. The scan alone dropped from
+~11.0 µs to ~5.5 µs; full parse from ~21.9 µs to ~11.7 µs.
 
-**Honest residual:** the remaining allocations are *structural* to the MRI value
-model — each object is a `*Map` over `[]Pair`, each array a boxed `[]any`, and
-string/array values must be boxed into `any`; these cannot be removed without
-changing the observable output. MRI's mature C extension keeps a modest edge
-(~1.8×) on this document, so full parse parity is not reachable while the return
-type is the Ruby value tree.
+**Where the floor is:** the surviving allocations are the *irreducible* interface
+boxes of the value tree itself — each string value and each array must be boxed
+into `any` (~121 boxes for this document, ~1.75 µs) — plus the pure byte scan
+(~5.5 µs). Both are inherent while `Parse` returns the Ruby value tree, yet the
+sum now sits below MRI+YJIT because the scan and the non-boxing materialisation
+overhead were driven down far enough. Small integers (0–255) and `*Map` pointers
+box for free (Go's static small-value cache / pointer-in-interface), so the
+document's `id`/`score`/`tags` integers and its nested maps add no boxing.
 
 !!! note "Reproduce"
     The harness is committed under
