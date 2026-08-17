@@ -1,2 +1,4 @@
 github.com/go-ruby-json/json v0.0.0-20260703161253-b2dc44b51c73 h1:4fmB50pWHNM9H8SIFjE/5ecr54aMYHzW84UhI0O3LSo=
 github.com/go-ruby-json/json v0.0.0-20260703161253-b2dc44b51c73/go.mod h1:nHXcH3zaGNmCslZStZVeylXkv1wLp+nzT6qNj+m+QXU=
+github.com/go-ruby-json/json v0.0.0-20260717065916-72eedf157c69 h1:0n8Y9ui2i1o5ZYPIqQ1m/U1h0lCTrEhIXy8RatnVTow=
+github.com/go-ruby-json/json v0.0.0-20260717065916-72eedf157c69/go.mod h1:nHXcH3zaGNmCslZStZVeylXkv1wLp+nzT6qNj+m+QXU=
