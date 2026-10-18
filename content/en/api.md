@@ -1,18 +1,26 @@
-# Usage & API
+---
+title: "Usage & API"
+weight: 30
+---
+
+# Usage & API {#usage-api}
 
 The public API lives at the module root (`github.com/go-ruby-json/json`). It is **Ruby-shaped but Go-idiomatic**: `Parse` / `Generate` mirror Ruby's `JSON.parse` / `JSON.generate`, while the surface follows Go conventions — an explicit `error`, value types, no global state.
 
-!!! success "Status: implemented"
-    The library is built and importable as `github.com/go-ruby-json/json`, bound into
-    `rbgo` as a native module; see [Roadmap](roadmap.md).
+{{< callout type="info" >}}
+**Status: implemented**
 
-## Install
+The library is built and importable as `github.com/go-ruby-json/json`, bound into
+`rbgo` as a native module; see [Roadmap]({{< relref "roadmap.md" >}}).
+{{< /callout >}}
+
+## Install {#install}
 
 ```sh
 go get github.com/go-ruby-json/json
 ```
 
-## Worked example
+## Worked example {#worked-example}
 
 ```go
 v, _ := json.Parse(`{"a":1,"b":[2,3]}`)        // Ruby value graph
@@ -20,7 +28,7 @@ s, _ := json.Generate(map[string]any{"a": 1})  // `{"a":1}`
 p, _ := json.PrettyGenerate(v)                 // indented form
 ```
 
-## Shape
+## Shape {#shape}
 
 ```go
 // Parse parses JSON text into the Ruby value graph (JSON.parse).
@@ -33,7 +41,7 @@ func Generate(v Value) (string, error)
 func PrettyGenerate(v Value) (string, error)
 ```
 
-## MRI conformance
+## MRI conformance {#mri-conformance}
 
 Correctness is defined by reference Ruby. A **differential oracle** runs a wide
 corpus through both the system `ruby` and this library and compares the results
@@ -41,7 +49,7 @@ corpus through both the system `ruby` and this library and compares the results
 themselves where `ruby` is not on `PATH` (e.g. the qemu arch lanes), so the
 cross-arch builds still validate the library.
 
-## Relationship to Ruby
+## Relationship to Ruby {#relationship-to-ruby}
 
 `go-ruby-json/json` is **standalone and reusable**, and is the backend bound into
 [go-embedded-ruby](https://github.com/go-embedded-ruby/ruby) by `rbgo` as a
