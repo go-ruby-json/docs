@@ -1,4 +1,9 @@
-# go-ruby-json documentation
+---
+title: "Home"
+weight: 10
+---
+
+# go-ruby-json documentation {#go-ruby-json-documentation}
 
 **Ruby's JSON parser and generator in pure Go — MRI-compatible, no cgo.**
 
@@ -14,10 +19,13 @@ by `rbgo` as a native module — just like
 [go-ruby-erb](https://github.com/go-ruby-erb). The dependency runs the other
 way: this library has **no dependency on the Ruby runtime**.
 
-!!! success "Status: parser + generator complete — MRI byte-exact"
-    Faithful port of Ruby's JSON: **`JSON.parse`** parser and **`JSON.generate`** / **`JSON.pretty_generate`** generator, with **`symbolize_names`**, depth-limited **nesting**, and the full **`JSON::ParserError` / `JSON::NestingError` / `JSON::GeneratorError`** taxonomy. Validated by a **differential oracle** against the system `ruby` / `json` — parsed and generated values compared byte-for-byte — at 100% coverage, `gofmt` + `go vet` clean, CI green across the six 64-bit Go targets and three OSes.
+{{< callout type="info" >}}
+**Status: parser + generator complete — MRI byte-exact**
 
-## Quick taste
+Faithful port of Ruby's JSON: **`JSON.parse`** parser and **`JSON.generate`** / **`JSON.pretty_generate`** generator, with **`symbolize_names`**, depth-limited **nesting**, and the full **`JSON::ParserError` / `JSON::NestingError` / `JSON::GeneratorError`** taxonomy. Validated by a **differential oracle** against the system `ruby` / `json` — parsed and generated values compared byte-for-byte — at 100% coverage, `gofmt` + `go vet` clean, CI green across the six 64-bit Go targets and three OSes.
+{{< /callout >}}
+
+## Quick taste {#quick-taste}
 
 ```go
 v, _ := json.Parse(`{"a":1,"b":[2,3]}`)        // Ruby value graph
@@ -25,7 +33,7 @@ s, _ := json.Generate(map[string]any{"a": 1})  // `{"a":1}`
 p, _ := json.PrettyGenerate(v)                 // indented form
 ```
 
-## Repositories
+## Repositories {#repositories}
 
 | Repo | What it is |
 | --- | --- |
@@ -34,7 +42,7 @@ p, _ := json.PrettyGenerate(v)                 // indented form
 | [`go-ruby-json.github.io`](https://github.com/go-ruby-json/go-ruby-json.github.io) | the organization landing page (Hugo) |
 | [`brand`](https://github.com/go-ruby-json/brand) | logo and brand assets |
 
-## Principles
+## Principles {#principles}
 
 - **Pure Go, `CGO_ENABLED=0`** — trivial cross-compilation, a single static
   binary, no C toolchain.
@@ -45,11 +53,11 @@ p, _ := json.PrettyGenerate(v)                 // indented form
 - **100% test coverage** is the target, enforced as a CI gate, across 6 arches
   and 3 OSes.
 
-## Where to go next
+## Where to go next {#where-to-go-next}
 
-- [Why pure Go](why.md) — why this slice of Ruby is deterministic enough to live
+- [Why pure Go]({{< relref "why.md" >}}) — why this slice of Ruby is deterministic enough to live
   as a standalone, interpreter-independent Go library.
-- [Usage & API](api.md) — the public surface and worked examples.
-- [Roadmap](roadmap.md) — what is done and what is downstream by design.
+- [Usage & API]({{< relref "api.md" >}}) — the public surface and worked examples.
+- [Roadmap]({{< relref "roadmap.md" >}}) — what is done and what is downstream by design.
 
 Source lives at [github.com/go-ruby-json/json](https://github.com/go-ruby-json/json).
