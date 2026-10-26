@@ -6,3 +6,5 @@ github.com/go-ruby-json/json v0.0.0-20260803122801-b23aeb96e6ae h1:cmEWSuke12mKp
 github.com/go-ruby-json/json v0.0.0-20260803122801-b23aeb96e6ae/go.mod h1:nHXcH3zaGNmCslZStZVeylXkv1wLp+nzT6qNj+m+QXU=
 github.com/go-ruby-json/json v0.0.0-20260916094324-3ddd0f57b467 h1:jkUiPjB8SVePsZW/wi+bJGsU8BquiEqrquBti58+7D4=
 github.com/go-ruby-json/json v0.0.0-20260916094324-3ddd0f57b467/go.mod h1:nHXcH3zaGNmCslZStZVeylXkv1wLp+nzT6qNj+m+QXU=
+github.com/go-ruby-json/json v0.0.0-20261025191355-09eb07b50ade h1:9AIcZZ+RsQtGGbhlPMEq6QpUheVLDhBWfk4BALFqR6U=
+github.com/go-ruby-json/json v0.0.0-20261025191355-09eb07b50ade/go.mod h1:AJbkH5f2Ui8ChlecCJY9LpHehATj0hyxHeituups/qE=
